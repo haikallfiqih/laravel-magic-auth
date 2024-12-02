@@ -1,47 +1,17 @@
 name-template: 'v$RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
+
 categories:
   - title: '🚀 Features'
-    labels:
-      - 'feature'
-      - 'enhancement'
+    label: 'feature'
   - title: '🐛 Bug Fixes'
-    labels:
-      - 'fix'
-      - 'bugfix'
-      - 'bug'
-  - title: '🧰 Maintenance'
-    labels:
-      - 'chore'
-      - 'maintenance'
+    label: 'fix'
   - title: '📚 Documentation'
-    labels:
-      - 'docs'
-      - 'documentation'
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
-change-title-escapes: '\<*_&'
+    label: 'docs'
+
 version-resolver:
-  major:
-    labels:
-      - 'major'
-      - 'breaking'
-  minor:
-    labels:
-      - 'minor'
-      - 'feature'
-  patch:
-    labels:
-      - 'patch'
-      - 'fix'
-      - 'bugfix'
-      - 'bug'
-      - 'maintenance'
   default: patch
+
 template: |
-  ## Changes
-
+  ## What's Changed
   $CHANGES
-
-  ## 👨‍💻 Contributors
-
-  $CONTRIBUTORS
