@@ -2,105 +2,92 @@
 
 namespace LaravelLinkAuth\MagicAuth\Tests\Feature;
 
-use Illuminate\Support\Facades\Mail;
-use LaravelLinkAuth\MagicAuth\MagicAuth;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use LaravelLinkAuth\MagicAuth\Tests\TestCase;
+use LaravelLinkAuth\MagicAuth\Facades\MagicAuth;
+use LaravelLinkAuth\MagicAuth\Facades\Events;
+use LaravelLinkAuth\MagicAuth\Events\MagicAuthEvents;
+use Illuminate\Support\Facades\Notification;
 
 class MagicAuthTest extends TestCase
 {
-    protected function setUp(): void
+    use RefreshDatabase;
+
+    public function setUp(): void
     {
         parent::setUp();
-        Mail::fake();
+        Notification::fake();
     }
 
     /** @test */
-    public function it_can_send_magic_link()
+    public function it_can_send_magic_link_via_email()
     {
         $email = 'test@example.com';
-        $magicAuth = app(MagicAuth::class);
-
-        $result = $magicAuth->sendMagicLink($email, 'web');
-
+        
+        $result = MagicAuth::sendMagicLink($email);
+        
         $this->assertTrue($result);
         $this->assertDatabaseHas('magic_links', [
-            'email' => $email,
-            'guard' => 'web',
-            'used' => false,
+            'identifier' => $email,
         ]);
     }
 
     /** @test */
-    public function it_can_send_magic_link_for_admin()
+    public function it_fires_events_when_sending_magic_link()
     {
-        $email = 'admin@example.com';
-        $magicAuth = app(MagicAuth::class);
+        $events = [];
+        Events::listen(MagicAuthEvents::GENERATING, function () use (&$events) {
+            $events[] = 'generating';
+        });
+        Events::listen(MagicAuthEvents::SENT, function () use (&$events) {
+            $events[] = 'sent';
+        });
 
-        $result = $magicAuth->sendMagicLink($email, 'admin');
+        MagicAuth::sendMagicLink('test@example.com');
 
-        $this->assertTrue($result);
-        $this->assertDatabaseHas('magic_links', [
-            'email' => $email,
-            'guard' => 'admin',
-            'used' => false,
-        ]);
+        $this->assertEquals(['generating', 'sent'], $events);
     }
 
     /** @test */
-    public function it_validates_guard_type()
-    {
-        $this->expectException(\InvalidArgumentException::class);
-
-        $magicAuth = app(MagicAuth::class);
-        $magicAuth->sendMagicLink('test@example.com', 'invalid-guard');
-    }
-
-    /** @test */
-    public function it_marks_token_as_used_after_verification()
+    public function it_validates_magic_link_expiration()
     {
         $email = 'test@example.com';
-        $magicAuth = app(MagicAuth::class);
-
-        // Send magic link
-        $magicAuth->sendMagicLink($email, 'web');
-
-        // Get the token
-        $token = \DB::table('magic_links')
-            ->where('email', $email)
-            ->first()
-            ->token;
-
-        // Verify the token
-        $result = $magicAuth->verifyAndLogin($token, 'web');
-
-        $this->assertNotFalse($result);
-        $this->assertDatabaseHas('magic_links', [
-            'token' => $token,
-            'used' => true,
-        ]);
+        
+        // Create an expired link
+        $link = MagicAuth::sendMagicLink($email);
+        $this->travel(config('magic-auth.expires') + 1)->minutes();
+        
+        $result = MagicAuth::verifyAndLogin($link);
+        
+        $this->assertFalse($result);
     }
 
     /** @test */
-    public function it_prevents_reuse_of_tokens()
+    public function it_prevents_reuse_of_magic_links()
     {
         $email = 'test@example.com';
-        $magicAuth = app(MagicAuth::class);
-
-        // Send magic link
-        $magicAuth->sendMagicLink($email, 'web');
-
-        // Get the token
-        $token = \DB::table('magic_links')
-            ->where('email', $email)
-            ->first()
-            ->token;
-
-        // First verification should succeed
-        $result1 = $magicAuth->verifyAndLogin($token, 'web');
-        $this->assertNotFalse($result1);
-
-        // Second verification should fail
-        $result2 = $magicAuth->verifyAndLogin($token, 'web');
+        $link = MagicAuth::sendMagicLink($email);
+        
+        // First use should succeed
+        $result1 = MagicAuth::verifyAndLogin($link);
+        $this->assertTrue($result1);
+        
+        // Second use should fail
+        $result2 = MagicAuth::verifyAndLogin($link);
         $this->assertFalse($result2);
+    }
+
+    /** @test */
+    public function it_respects_rate_limiting()
+    {
+        $email = 'test@example.com';
+        $maxAttempts = config('magic-auth.throttle.max_attempts');
+        
+        for ($i = 0; $i < $maxAttempts; $i++) {
+            MagicAuth::sendMagicLink($email);
+        }
+        
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        MagicAuth::sendMagicLink($email);
     }
 }

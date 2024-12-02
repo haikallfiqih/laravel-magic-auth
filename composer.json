@@ -21,8 +21,7 @@
     ],
     "require": {
         "php": "^8.0",
-        "laravel/framework": "^8.0|^9.0|^10.0|^11.0",
-        "laravel-notification-channels/whatsapp": "^3.0"
+        "laravel/framework": "^8.0|^9.0|^10.0|^11.0"
     },
     "require-dev": {
         "orchestra/testbench": "^6.0|^7.0|^8.0|^9.0",
@@ -30,8 +29,8 @@
         "friendsofphp/php-cs-fixer": "^3.0"
     },
     "suggest": {
-        "twilio/sdk": "Required for Twilio WhatsApp integration",
-        "guzzlehttp/guzzle": "Required for custom WhatsApp providers"
+        "twilio/sdk": "Required for Twilio WhatsApp/SMS integration",
+        "guzzlehttp/guzzle": "Required for HTTP notifications"
     },
     "scripts": {
         "test": "vendor/bin/phpunit",

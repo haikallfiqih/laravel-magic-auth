@@ -5,7 +5,7 @@ namespace LaravelLinkAuth\MagicAuth\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
-use NotificationChannels\WhatsApp\WhatsAppMessage;
+use Twilio\Rest\Client as TwilioClient;
 
 class MagicLinkNotification extends Notification
 {
@@ -46,7 +46,7 @@ class MagicLinkNotification extends Notification
      */
     public function via($notifiable)
     {
-        return $notifiable->magicLinkChannels ?? config('magic-auth.channels', ['mail']);
+        return $notifiable->magicLinkChannels ?? config('magic-auth.channels.default', ['mail']);
     }
 
     /**
@@ -66,13 +66,17 @@ class MagicLinkNotification extends Notification
     }
 
     /**
-     * Get the WhatsApp representation of the notification.
+     * Send the WhatsApp message.
      *
      * @param mixed $notifiable
-     * @return \NotificationChannels\WhatsApp\WhatsAppMessage
+     * @return void
      */
-    public function toWhatsApp($notifiable)
+    public function toWhatsapp($notifiable)
     {
+        if (!class_exists(TwilioClient::class)) {
+            throw new \RuntimeException('Twilio SDK is required for WhatsApp notifications. Please install twilio/sdk package.');
+        }
+
         $message = config('magic-auth.whatsapp.message', 
             "Your login link for :app\n\nClick here to login: :url\n\nThis link will expire in :minutes minutes.");
 
@@ -82,25 +86,52 @@ class MagicLinkNotification extends Notification
             ':minutes' => $this->expiresInMinutes
         ]);
 
-        return WhatsAppMessage::create()
-            ->content($message);
+        $twilioClient = new TwilioClient(
+            config('services.twilio.sid'),
+            config('services.twilio.token')
+        );
+
+        $twilioClient->messages->create(
+            'whatsapp:' . $notifiable->routeNotificationFor('whatsapp'),
+            [
+                'from' => 'whatsapp:' . config('magic-auth.whatsapp.from'),
+                'body' => $message
+            ]
+        );
     }
 
     /**
-     * Get the SMS representation of the notification.
+     * Send the SMS message.
      *
      * @param mixed $notifiable
-     * @return array
+     * @return void
      */
     public function toSms($notifiable)
     {
+        if (!class_exists(TwilioClient::class)) {
+            throw new \RuntimeException('Twilio SDK is required for SMS notifications. Please install twilio/sdk package.');
+        }
+
         $message = config('magic-auth.sms.message', 
             "Your :app login link: :url (expires in :minutes minutes)");
 
-        return strtr($message, [
+        $message = strtr($message, [
             ':app' => config('app.name'),
             ':url' => $this->url,
             ':minutes' => $this->expiresInMinutes
         ]);
+
+        $twilioClient = new TwilioClient(
+            config('services.twilio.sid'),
+            config('services.twilio.token')
+        );
+
+        $twilioClient->messages->create(
+            $notifiable->routeNotificationFor('sms'),
+            [
+                'from' => config('magic-auth.sms.from'),
+                'body' => $message
+            ]
+        );
     }
 }
