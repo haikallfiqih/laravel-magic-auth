@@ -5,12 +5,8 @@ on:
     types: [published]
 
 jobs:
-  notify:
+  release:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Notify Package Release
-        uses: rtCamp/action-discord-notify@v2
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_MESSAGE: "New release ${{ github.event.release.tag_name }} of Laravel Magic Auth is now available! \n\nChangelog: ${{ github.event.release.html_url }}"
+      - uses: actions/checkout@v4
+      - run: echo "Release ${{ github.event.release.tag_name }} published!"
